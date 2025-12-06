@@ -1,10 +1,23 @@
 import { GoogleGenAI } from "@google/genai";
 import { Order } from "../types";
 
-const processApiKey = process.env.API_KEY;
+// Safely access the API Key. 
+// In some frontend environments, accessing 'process' directly without checking definition can crash the app.
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    console.error("Error accessing environment variables", e);
+  }
+  return undefined;
+};
+
+const processApiKey = getApiKey();
 
 export const generateLabInsights = async (orders: Order[]): Promise<string> => {
-  if (!processApiKey) return "AI Insights Unavailable: No API Key.";
+  if (!processApiKey) return "AI Insights Unavailable: No API Key detected.";
 
   const ai = new GoogleGenAI({ apiKey: processApiKey });
   

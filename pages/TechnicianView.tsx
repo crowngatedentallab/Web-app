@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { sheetService } from '../services/sheetService';
-import { Order, OrderStatus } from '../types';
+import { Order, OrderStatus, User } from '../types';
 import { ArrowRight, CheckCircle2, Lock } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 
-// SIMULATED AUTHENTICATED USER
-const LOGGED_IN_TECH = 'Tech Mike';
+interface TechnicianViewProps {
+  user: User;
+}
 
-export const TechnicianView: React.FC = () => {
+export const TechnicianView: React.FC<TechnicianViewProps> = ({ user }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<'todo' | 'completed'>('todo');
 
@@ -15,12 +16,12 @@ export const TechnicianView: React.FC = () => {
     loadOrders();
     const unsubscribe = sheetService.subscribe(loadOrders);
     return unsubscribe;
-  }, []);
+  }, [user]);
 
   const loadOrders = async () => {
     const all = await sheetService.getOrders();
     // STRICT FILTER: Only show orders assigned to the logged-in technician
-    const myWork = all.filter(o => o.assignedTech === LOGGED_IN_TECH);
+    const myWork = all.filter(o => o.assignedTech === user.fullName);
     setOrders(myWork);
   };
 
@@ -33,6 +34,16 @@ export const TechnicianView: React.FC = () => {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    // Expects YYYY-MM-DD from sheetService normalization
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY
+    }
+    return dateString;
+  };
+
   const todoOrders = orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.DISPATCHED);
   const completedOrders = orders.filter(o => o.status === OrderStatus.DELIVERED || o.status === OrderStatus.DISPATCHED);
   
@@ -43,9 +54,9 @@ export const TechnicianView: React.FC = () => {
       
       <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-slate-200">
         <div>
-            <h1 className="text-xl font-bold text-slate-900">Lab Station 1</h1>
+            <h1 className="text-xl font-bold text-slate-900">Lab Station</h1>
             <p className="text-xs text-slate-500 flex items-center gap-1">
-              <Lock size={10} /> {LOGGED_IN_TECH} (Ceramist)
+              <Lock size={10} /> {user.fullName} • Logged In
             </p>
         </div>
       </div>
@@ -76,7 +87,7 @@ export const TechnicianView: React.FC = () => {
                 <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 rounded">{order.id}</span>
                     <span className={`text-xs font-bold ${order.priority === 'Urgent' ? 'text-red-600' : 'text-slate-400'}`}>
-                        Due: {new Date(order.dueDate).toLocaleDateString()}
+                        Due: {formatDate(order.dueDate)}
                     </span>
                 </div>
                 

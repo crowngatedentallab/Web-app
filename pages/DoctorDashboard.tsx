@@ -1,55 +1,95 @@
+
 import React, { useState, useEffect } from 'react';
 import { sheetService } from '../services/sheetService';
-import { Order, OrderStatus } from '../types';
-import { Plus, Search, Calendar, ChevronRight, FileText, Lock } from 'lucide-react';
+import { Order, OrderStatus, User, Product } from '../types';
+import { Plus, Calendar, FileText, Lock, Loader2 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 
-// SIMULATED AUTHENTICATED USER
-const LOGGED_IN_DOCTOR = 'Dr. Smith';
+interface DoctorDashboardProps {
+  user: User;
+}
 
-export const DoctorDashboard: React.FC = () => {
+export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ user }) => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     patientName: '',
     toothNumber: '',
-    typeOfWork: 'Zirconia Crown',
-    shade: 'A2',
+    typeOfWork: '', // Will default to first product
+    shade: '',
     dueDate: '',
     notes: '',
     priority: 'Normal' as 'Normal' | 'Urgent'
   });
 
   useEffect(() => {
-    loadOrders();
-    const unsubscribe = sheetService.subscribe(loadOrders);
+    loadData();
+    const unsubscribe = sheetService.subscribe(loadData);
     return unsubscribe;
-  }, []);
+  }, [user]);
 
-  const loadOrders = async () => {
-    const all = await sheetService.getOrders();
+  const loadData = async () => {
+    const [allOrders, allProducts] = await Promise.all([
+        sheetService.getOrders(),
+        sheetService.getProducts()
+    ]);
+    
     // STRICT FILTER: Only show orders where doctorName matches the logged-in user
-    const myOrders = all.filter(o => o.doctorName === LOGGED_IN_DOCTOR);
+    const myOrders = allOrders.filter(o => o.doctorName === user.fullName);
     setOrders(myOrders); 
+    setProducts(allProducts);
+
+    // Set default product if none selected
+    if (allProducts.length > 0 && !formData.typeOfWork) {
+        setFormData(prev => ({ ...prev, typeOfWork: allProducts[0].name }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await sheetService.addOrder({
-      ...formData,
-      doctorName: LOGGED_IN_DOCTOR, // Enforce correct doctor name
-    });
-    setShowForm(false);
-    setFormData({
-      patientName: '',
-      toothNumber: '',
-      typeOfWork: 'Zirconia Crown',
-      shade: 'A2',
-      dueDate: '',
-      notes: '',
-      priority: 'Normal'
-    });
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    
+    try {
+        await sheetService.addOrder({
+        ...formData,
+        typeOfWork: formData.typeOfWork || (products[0]?.name || 'Standard Crown'),
+        doctorName: user.fullName, // Enforce correct doctor name from Auth
+        clinicName: user.relatedEntity // Enforce clinic name from Auth
+        });
+        
+        setShowForm(false);
+        // Reset form
+        setFormData({
+        patientName: '',
+        toothNumber: '',
+        typeOfWork: products[0]?.name || '',
+        shade: '',
+        dueDate: '',
+        notes: '',
+        priority: 'Normal'
+        });
+    } catch (error) {
+        console.error("Submission failed", error);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    // Expects YYYY-MM-DD from sheetService normalization
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY
+    }
+    return dateString;
+  };
+
+  const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8 mt-16">
@@ -57,24 +97,31 @@ export const DoctorDashboard: React.FC = () => {
       {/* Clinic Header */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{LOGGED_IN_DOCTOR}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{user.fullName}</h1>
           <p className="text-slate-500 text-sm flex items-center gap-1">
-            <Lock size={12} /> Smile Care Clinic • Secure Portal
+            <Lock size={12} /> {user.relatedEntity || 'Secure Portal'} • Authenticated
           </p>
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center space-x-2 bg-brand-800 hover:bg-brand-900 text-white px-5 py-2.5 rounded shadow-md transition-all font-medium text-sm"
+          disabled={isSubmitting}
+          className="flex items-center space-x-2 bg-brand-800 hover:bg-brand-900 text-white px-5 py-2.5 rounded shadow-md transition-all font-medium text-sm disabled:opacity-50"
         >
           <Plus size={18} />
           <span>New Lab Order</span>
         </button>
       </div>
 
-      {/* New Order Form - Medical Record Style */}
+      {/* New Order Form */}
       {showForm && (
         <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-xl animate-in fade-in slide-in-from-top-4 relative">
-            <button onClick={() => setShowForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">Cancel</button>
+            <button 
+                onClick={() => !isSubmitting && setShowForm(false)} 
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                disabled={isSubmitting}
+            >
+                Cancel
+            </button>
             
             <div className="flex items-center gap-2 mb-6 text-brand-800 border-b border-slate-100 pb-2">
                 <FileText size={20} />
@@ -87,12 +134,12 @@ export const DoctorDashboard: React.FC = () => {
               <input 
                 disabled
                 type="text" 
-                value={LOGGED_IN_DOCTOR}
+                value={user.fullName}
                 className="w-full bg-slate-100 border border-slate-200 rounded p-2.5 text-slate-500 cursor-not-allowed"
               />
             </div>
              <div>
-              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Patient Name</label>
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Patient Name <span className="text-red-500">*</span></label>
               <input 
                 required
                 type="text" 
@@ -103,19 +150,23 @@ export const DoctorDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Required Date</label>
-              <input 
-                required
-                type="date" 
-                className="w-full bg-slate-50 border border-slate-300 rounded p-2.5 text-slate-900 focus:border-brand-600 focus:outline-none"
-                value={formData.dueDate}
-                onChange={e => setFormData({...formData, dueDate: e.target.value})}
-              />
+              <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Required Date <span className="text-red-500">*</span></label>
+              <div className="relative">
+                <input 
+                    required
+                    type="date" 
+                    min={today}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2.5 text-slate-900 focus:border-brand-600 focus:outline-none appearance-none"
+                    value={formData.dueDate}
+                    onChange={e => setFormData({...formData, dueDate: e.target.value})}
+                />
+                {/* Calendar icon pointer-events-none ensures clicking icon passes through to input */}
+                <Calendar className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" size={18} />
+              </div>
             </div>
             <div>
               <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Tooth #</label>
               <input 
-                required
                 placeholder="e.g. 11, 21"
                 type="text" 
                 className="w-full bg-slate-50 border border-slate-300 rounded p-2.5 text-slate-900 focus:border-brand-600 focus:outline-none"
@@ -126,7 +177,6 @@ export const DoctorDashboard: React.FC = () => {
             <div>
               <label className="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Shade</label>
               <input 
-                required
                 placeholder="e.g. A2"
                 type="text" 
                 className="w-full bg-slate-50 border border-slate-300 rounded p-2.5 text-slate-900 focus:border-brand-600 focus:outline-none"
@@ -141,11 +191,13 @@ export const DoctorDashboard: React.FC = () => {
                 value={formData.typeOfWork}
                 onChange={e => setFormData({...formData, typeOfWork: e.target.value})}
               >
-                <option>Zirconia Crown</option>
-                <option>E-Max Veneer</option>
-                <option>PFM</option>
-                <option>Implant Abutment</option>
-                <option>Full Arch</option>
+                {products.length === 0 ? (
+                    <option>Loading types...</option>
+                ) : (
+                    products.map(prod => (
+                        <option key={prod.id} value={prod.name}>{prod.name}</option>
+                    ))
+                )}
               </select>
             </div>
             <div>
@@ -171,29 +223,32 @@ export const DoctorDashboard: React.FC = () => {
               <button 
                 type="button" 
                 onClick={() => setShowForm(false)}
-                className="px-6 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium disabled:opacity-50"
               >
                 Cancel
               </button>
               <button 
                 type="submit"
-                className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white rounded shadow-sm text-sm font-bold uppercase tracking-wide"
+                disabled={isSubmitting}
+                className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white rounded shadow-sm text-sm font-bold uppercase tracking-wide flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Authorize Case
+                {isSubmitting && <Loader2 className="animate-spin" size={16} />}
+                {isSubmitting ? 'Processing...' : 'Authorize Case'}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Orders List - Professional Cards */}
+      {/* Orders List */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 border-l-4 border-brand-600 pl-3">
           My Active Cases
         </h3>
         {orders.length === 0 ? (
             <div className="bg-white border border-slate-200 p-12 text-center rounded-lg">
-                <p className="text-slate-400">No active cases found for {LOGGED_IN_DOCTOR}.</p>
+                <p className="text-slate-400">No active cases found for {user.fullName}.</p>
             </div>
         ) : (
           orders.map(order => (
@@ -208,9 +263,9 @@ export const DoctorDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="text-sm text-slate-500 flex flex-wrap gap-x-6 gap-y-1 mt-2">
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>Tooth #{order.toothNumber}</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>Tooth #{order.toothNumber || '-'}</span>
                     <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>{order.typeOfWork}</span>
-                    <span className="flex items-center gap-1 text-brand-700 font-medium"><Calendar size={12}/> Due: {order.dueDate}</span>
+                    <span className="flex items-center gap-1 text-brand-700 font-medium"><Calendar size={12}/> Due: {formatDate(order.dueDate)}</span>
                   </div>
                 </div>
                 

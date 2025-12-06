@@ -1,3 +1,4 @@
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   DOCTOR = 'DOCTOR',
@@ -15,10 +16,24 @@ export enum OrderStatus {
   DELIVERED = 'Delivered'
 }
 
+export interface User {
+  id: string;
+  username: string;
+  password: string; // In a real app, this should be hashed!
+  fullName: string;
+  role: UserRole;
+  relatedEntity?: string; // e.g., Clinic Name for Doctors
+}
+
+export interface Product {
+  id: string;
+  name: string;
+}
+
 export interface Order {
   id: string;
   patientName: string;
-  doctorName: string;
+  doctorName: string; // Links to User.fullName or User.id
   clinicName?: string;
   toothNumber: string;
   shade: string;
@@ -27,7 +42,7 @@ export interface Order {
   submissionDate: string;
   dueDate: string;
   notes?: string;
-  assignedTech?: string;
+  assignedTech?: string; // Links to User.fullName
   priority: 'Normal' | 'Urgent';
 }
 

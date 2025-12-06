@@ -1,4 +1,55 @@
-import { Order, OrderStatus } from '../types';
+
+import { Order, OrderStatus, User, UserRole, Product } from '../types';
+
+export const MOCK_USERS: User[] = [
+  {
+    id: 'USR-001',
+    username: 'admin',
+    password: 'password123',
+    fullName: 'Admin User',
+    role: UserRole.ADMIN
+  },
+  {
+    id: 'USR-002',
+    username: 'drsmith',
+    password: 'password123',
+    fullName: 'Dr. Smith',
+    role: UserRole.DOCTOR,
+    relatedEntity: 'Smile Care Clinic'
+  },
+  {
+    id: 'USR-003',
+    username: 'drpatel',
+    password: 'password123',
+    fullName: 'Dr. Patel',
+    role: UserRole.DOCTOR,
+    relatedEntity: 'Dental Arts'
+  },
+  {
+    id: 'USR-004',
+    username: 'techmike',
+    password: 'password123',
+    fullName: 'Tech Mike',
+    role: UserRole.TECHNICIAN
+  },
+  {
+    id: 'USR-005',
+    username: 'techsarah',
+    password: 'password123',
+    fullName: 'Tech Sarah',
+    role: UserRole.TECHNICIAN
+  }
+];
+
+export const MOCK_PRODUCTS: Product[] = [
+  { id: 'PROD-1', name: 'Zirconia Crown' },
+  { id: 'PROD-2', name: 'E-Max Veneer' },
+  { id: 'PROD-3', name: 'PFM (Porcelain Fused to Metal)' },
+  { id: 'PROD-4', name: 'Implant Abutment' },
+  { id: 'PROD-5', name: 'Full Arch Hybrid' },
+  { id: 'PROD-6', name: 'Nightguard / Splint' },
+  { id: 'PROD-7', name: 'Temporary Crown' }
+];
 
 export const MOCK_ORDERS: Order[] = [
   {
@@ -70,7 +121,7 @@ export const MOCK_ORDERS: Order[] = [
     status: OrderStatus.RECEIVED,
     submissionDate: '2023-10-27',
     dueDate: '2023-11-05',
-    assignedTech: 'Tech Mike', // Assigned to Mike to show in his queue
+    assignedTech: 'Tech Mike', 
     priority: 'Urgent'
   }
 ];
